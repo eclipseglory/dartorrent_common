@@ -1,6 +1,6 @@
 name: dartorrent_common
-description: A common library for Dart torrent.
-version: 1.0.1
+description: A common library for Dart torrent client development. Include some common methods and class.
+version: 1.0.3
 repository: https://github.com/eclipseglory/dartorrent_common
 issue_tracker : https://github.com/eclipseglory/dartorrent_common/issues
 publish_to: https://pub.dev/

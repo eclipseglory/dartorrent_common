@@ -19,4 +19,9 @@ void main() {
   var l = CompactAddress.parseIPv4Addresses(bytes);
   print(l);
   l.clear();
+
+  /// find public trackers:
+  findPublicTrackers().listen((urls) {
+    print(urls);
+  });
 }

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
 import 'dart:math' as math;
@@ -15,12 +16,28 @@ class CompactAddress {
     assert(port >= 0 && port <= 65535, 'wrong port');
   }
 
-  List<int> toBytes() {
-    var l = <int>[];
-    l.addAll(address.rawAddress);
-    var b = Uint8List(2);
-    ByteData.view(b.buffer).setUint16(0, port);
-    l.addAll(b);
+  /// Get compact address bytes
+  ///
+  /// The bytes formate is [`ip-bytes`][`port bytes`]
+  List<int> toBytes([bool growable = true]) {
+    var l;
+    if (growable) {
+      l = <int>[];
+      l.addAll(address.rawAddress);
+      var b = Uint8List(2);
+      ByteData.view(b.buffer).setUint16(0, port);
+      l.addAll(b);
+    } else {
+      var len = address.rawAddress.length + 2;
+      l = Uint8List(len);
+      var i = 0;
+      for (; i < len - 2; i++) {
+        l[i] = address.rawAddress[i];
+      }
+      ByteData.view(l.buffer).setUint16(address.rawAddress.length, port);
+      return l;
+    }
+
     return l;
   }
 
@@ -53,14 +70,36 @@ class CompactAddress {
     return false;
   }
 
-  static List<int> multipleAddressBytes(List<CompactAddress> addresses) {
-    var l = <int>[];
-    addresses.forEach((address) {
-      l.addAll(address.toBytes());
-    });
+  /// Transform compact address list to bytes
+  ///
+  /// the [addresses] list should contains same ip type `CompactAddress`
+  /// or will exception will happen.
+  static List<int> multipleAddressBytes(List<CompactAddress> addresses,
+      [bool growable = true]) {
+    if (addresses == null || addresses.isEmpty) return <int>[];
+    var l;
+    if (growable) {
+      l = <int>[];
+      addresses.forEach((address) {
+        l.addAll(address.toBytes(false));
+      });
+    } else {
+      var a = addresses[0];
+      var len = a.address.rawAddress.length + 2;
+      l = Uint8List(addresses.length * len);
+      var view = ByteData.view((l as Uint8List).buffer);
+      for (var i = 0; i < addresses.length; i++) {
+        var add = addresses[i];
+        for (var j = 0; j < add.address.rawAddress.length; j++) {
+          l[i * len + j] = add.address.rawAddress[j];
+        }
+        view.setUint16(i * len + len - 2, add.port);
+      }
+    }
     return l;
   }
 
+  /// Parse compact bytes to ipv4 address
   static List<CompactAddress> parseIPv4Addresses(List<int> message,
       [int offset = 0, int end]) {
     if (message == null) return <CompactAddress>[];
@@ -79,6 +118,7 @@ class CompactAddress {
     return l;
   }
 
+  /// Parse compact bytes to ipv4 address list
   static CompactAddress parseIPv4Address(List<int> message, [int offset = 0]) {
     if (message == null) return null;
     if (message.length - offset < 6) {
@@ -97,6 +137,7 @@ class CompactAddress {
         port);
   }
 
+  /// Parse compact bytes to ipv6 address
   static CompactAddress parseIPv6Address(List<int> message, [int offset = 0]) {
     if (message == null) return null;
     if (message.length - offset < 18) {
@@ -115,6 +156,7 @@ class CompactAddress {
         port);
   }
 
+  /// Parse compact bytes to ipv6 address list
   static List<CompactAddress> parseIPv6Addresses(List<int> message,
       [int offset = 0, int end]) {
     if (message == null) return <CompactAddress>[];
@@ -134,11 +176,24 @@ class CompactAddress {
   }
 }
 
-List<int> randomBytes(count) {
+/// Random bytes array.
+///
+/// [count] is bytes length, if [typedList] is `false` , will return a fixed-length array ([Uint8List]).
+///
+/// [typedList] default value is `false`
+List<int> randomBytes(count, [bool typedList = false]) {
   var random = math.Random();
-  var bytes = List<int>(count);
-  for (var i = 0; i < count; i++) {
-    bytes[i] = random.nextInt(256);
+  var bytes;
+  if (typedList) {
+    bytes = Uint8List(count);
+    for (var i = 0; i < count; i++) {
+      bytes[i] = random.nextInt(256);
+    }
+  } else {
+    bytes = <int>[];
+    for (var i = 0; i < count; i++) {
+      bytes.add(random.nextInt(256));
+    }
   }
   return bytes;
 }
@@ -159,4 +214,54 @@ String transformBufferToHexString(List<int> buffer) {
     return previousValue + hex;
   });
   return str;
+}
+
+Future<List<Uri>> _getTrackerFrom(String trackerUrlStr,
+    [int retryTime = 0]) async {
+  if (retryTime >= 3) return null;
+  var client;
+  var _access = () async {
+    var alist = <Uri>[];
+    var aurl;
+    aurl = Uri.parse(trackerUrlStr);
+    client = HttpClient();
+    var request = await client.getUrl(aurl);
+    var response = await request.close();
+    if (response.statusCode != 200) return alist;
+    var stream = await utf8.decoder.bind(response);
+    await stream.forEach((element) {
+      var ss = element.split('\n');
+      ss.forEach((url) {
+        if (url != null && url.isNotEmpty) {
+          try {
+            var r = Uri.parse(url);
+            alist.add(r);
+          } catch (e) {
+            //
+          }
+        }
+      });
+    });
+    return alist;
+  };
+  try {
+    var re = await _access();
+    client?.close();
+    return re;
+  } catch (e) {
+    client?.close();
+    await Future.delayed(Duration(seconds: 15 * math.pow(2, retryTime)));
+    return _getTrackerFrom(trackerUrlStr, ++retryTime);
+  }
+}
+
+/// Get trackers url list from some awsome website
+Stream<List<Uri>> findPublicTrackers() {
+  var f = <Future<List<Uri>>>[];
+  f.add(_getTrackerFrom('https://newtrackon.com/api/stable'));
+  f.add(_getTrackerFrom('https://trackerslist.com/all.txt'));
+  f.add(_getTrackerFrom(
+      'https://cdn.jsdelivr.net/gh/ngosang/trackerslist/trackers_all.txt'));
+  f.add(_getTrackerFrom('https://at.raxianch.moe/?type=AT-all'));
+  return Stream.fromFutures(f);
 }
