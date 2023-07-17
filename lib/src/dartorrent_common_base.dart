@@ -9,10 +9,9 @@ import 'dart:typed_data';
 class CompactAddress {
   final InternetAddress address;
   final int port;
-  String _contactEncodingStr;
+  String? _contactEncodingStr;
 
   CompactAddress(this.address, this.port) {
-    assert(address != null && port != null, 'address or port can not be null');
     assert(port >= 0 && port <= 65535, 'wrong port');
   }
 
@@ -20,16 +19,16 @@ class CompactAddress {
   ///
   /// The bytes formate is [`ip-bytes`][`port bytes`]
   List<int> toBytes([bool growable = true]) {
-    var l;
     if (growable) {
-      l = <int>[];
+      var l = <int>[];
       l.addAll(address.rawAddress);
       var b = Uint8List(2);
       ByteData.view(b.buffer).setUint16(0, port);
       l.addAll(b);
+      return l;
     } else {
       var len = address.rawAddress.length + 2;
-      l = Uint8List(len);
+      var l = Uint8List(len);
       var i = 0;
       for (; i < len - 2; i++) {
         l[i] = address.rawAddress[i];
@@ -37,8 +36,6 @@ class CompactAddress {
       ByteData.view(l.buffer).setUint16(address.rawAddress.length, port);
       return l;
     }
-
-    return l;
   }
 
   CompactAddress clone() {
@@ -51,7 +48,7 @@ class CompactAddress {
 
   String toContactEncodingString() {
     _contactEncodingStr ??= String.fromCharCodes(toBytes());
-    return _contactEncodingStr;
+    return _contactEncodingStr!;
   }
 
   @override
@@ -76,18 +73,18 @@ class CompactAddress {
   /// or will exception will happen.
   static List<int> multipleAddressBytes(List<CompactAddress> addresses,
       [bool growable = true]) {
-    if (addresses == null || addresses.isEmpty) return <int>[];
-    var l;
+    if (addresses.isEmpty) return <int>[];
+
     if (growable) {
-      l = <int>[];
+      var l = <int>[];
       addresses.forEach((address) {
         l.addAll(address.toBytes(false));
       });
+      return l;
     } else {
-      var a = addresses[0];
-      var len = a.address.rawAddress.length + 2;
-      l = Uint8List(addresses.length * len);
-      var view = ByteData.view((l as Uint8List).buffer);
+      var len = addresses[0].address.rawAddress.length + 2;
+      var l = Uint8List(addresses.length * len);
+      var view = ByteData.view(l.buffer);
       for (var i = 0; i < addresses.length; i++) {
         var add = addresses[i];
         for (var j = 0; j < add.address.rawAddress.length; j++) {
@@ -95,14 +92,13 @@ class CompactAddress {
         }
         view.setUint16(i * len + len - 2, add.port);
       }
+      return l;
     }
-    return l;
   }
 
   /// Parse compact bytes to ipv4 address
   static List<CompactAddress> parseIPv4Addresses(List<int> message,
-      [int offset = 0, int end]) {
-    if (message == null) return <CompactAddress>[];
+      [int offset = 0, int? end]) {
     end ??= message.length;
     var l = <CompactAddress>[];
     for (var i = offset; i < end; i += 6) {
@@ -119,8 +115,7 @@ class CompactAddress {
   }
 
   /// Parse compact bytes to ipv4 address list
-  static CompactAddress parseIPv4Address(List<int> message, [int offset = 0]) {
-    if (message == null) return null;
+  static CompactAddress? parseIPv4Address(List<int> message, [int offset = 0]) {
     if (message.length - offset < 6) {
       return null;
     }
@@ -138,8 +133,7 @@ class CompactAddress {
   }
 
   /// Parse compact bytes to ipv6 address
-  static CompactAddress parseIPv6Address(List<int> message, [int offset = 0]) {
-    if (message == null) return null;
+  static CompactAddress? parseIPv6Address(List<int> message, [int offset = 0]) {
     if (message.length - offset < 18) {
       return null;
     }
@@ -158,8 +152,7 @@ class CompactAddress {
 
   /// Parse compact bytes to ipv6 address list
   static List<CompactAddress> parseIPv6Addresses(List<int> message,
-      [int offset = 0, int end]) {
-    if (message == null) return <CompactAddress>[];
+      [int offset = 0, int? end]) {
     end ??= message.length;
     var l = <CompactAddress>[];
     for (var i = offset; i < end; i += 18) {
@@ -181,21 +174,22 @@ class CompactAddress {
 /// [count] is bytes length, if [typedList] is `false` , will return a fixed-length array ([Uint8List]).
 ///
 /// [typedList] default value is `false`
-List<int> randomBytes(count, [bool typedList = false]) {
+List<int> randomBytes(int count, [bool typedList = false]) {
   var random = math.Random();
-  var bytes;
+
   if (typedList) {
-    bytes = Uint8List(count);
+    var bytes = Uint8List(count);
     for (var i = 0; i < count; i++) {
       bytes[i] = random.nextInt(256);
     }
+    return bytes;
   } else {
-    bytes = <int>[];
+    var bytes = <int>[];
     for (var i = 0; i < count; i++) {
       bytes.add(random.nextInt(256));
     }
+    return bytes;
   }
-  return bytes;
 }
 
 /// return random int number , `0 - max`
@@ -218,21 +212,20 @@ String transformBufferToHexString(List<int> buffer) {
 
 Future<List<Uri>> _getTrackerFrom(String trackerUrlStr,
     [int retryTime = 0]) async {
-  if (retryTime >= 3) return null;
-  var client;
+  if (retryTime >= 3) return [];
+  HttpClient? client;
   var _access = () async {
     var alist = <Uri>[];
-    var aurl;
-    aurl = Uri.parse(trackerUrlStr);
-    client = HttpClient();
+    var aurl = Uri.parse(trackerUrlStr);
+    var client = HttpClient();
     var request = await client.getUrl(aurl);
     var response = await request.close();
     if (response.statusCode != 200) return alist;
-    var stream = await utf8.decoder.bind(response);
+    var stream = utf8.decoder.bind(response);
     await stream.forEach((element) {
       var ss = element.split('\n');
       ss.forEach((url) {
-        if (url != null && url.isNotEmpty) {
+        if (url.isNotEmpty) {
           try {
             var r = Uri.parse(url);
             alist.add(r);
@@ -250,7 +243,8 @@ Future<List<Uri>> _getTrackerFrom(String trackerUrlStr,
     return re;
   } catch (e) {
     client?.close();
-    await Future.delayed(Duration(seconds: 15 * math.pow(2, retryTime)));
+    await Future.delayed(
+        Duration(seconds: 15 * math.pow(2, retryTime).toInt()));
     return _getTrackerFrom(trackerUrlStr, ++retryTime);
   }
 }
