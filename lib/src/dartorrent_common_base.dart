@@ -60,9 +60,9 @@ class CompactAddress {
   int get hashCode => toContactEncodingString().hashCode;
 
   @override
-  bool operator ==(b) {
-    if (b is CompactAddress) {
-      return b.address == address && port == b.port;
+  bool operator ==(other) {
+    if (other is CompactAddress) {
+      return other.address == address && port == other.port;
     }
     return false;
   }
@@ -77,9 +77,9 @@ class CompactAddress {
 
     if (growable) {
       var l = <int>[];
-      addresses.forEach((address) {
+      for (var address in addresses) {
         l.addAll(address.toBytes(false));
-      });
+      }
       return l;
     } else {
       var len = addresses[0].address.rawAddress.length + 2;
@@ -204,7 +204,7 @@ int randomInt(int max) {
 String transformBufferToHexString(List<int> buffer) {
   var str = buffer.fold<String>('', (previousValue, byte) {
     var hex = byte.toRadixString(16);
-    if (hex.length != 2) hex = '0' + hex;
+    if (hex.length != 2) hex = '0$hex';
     return previousValue + hex;
   });
   return str;
@@ -213,18 +213,17 @@ String transformBufferToHexString(List<int> buffer) {
 Future<List<Uri>> _getTrackerFrom(String trackerUrlStr,
     [int retryTime = 0]) async {
   if (retryTime >= 3) return [];
-  HttpClient? client;
-  var _access = () async {
+  HttpClient client = HttpClient();
+  access() async {
     var alist = <Uri>[];
     var aurl = Uri.parse(trackerUrlStr);
-    var client = HttpClient();
     var request = await client.getUrl(aurl);
     var response = await request.close();
     if (response.statusCode != 200) return alist;
     var stream = utf8.decoder.bind(response);
     await stream.forEach((element) {
       var ss = element.split('\n');
-      ss.forEach((url) {
+      for (var url in ss) {
         if (url.isNotEmpty) {
           try {
             var r = Uri.parse(url);
@@ -233,16 +232,17 @@ Future<List<Uri>> _getTrackerFrom(String trackerUrlStr,
             //
           }
         }
-      });
+      }
     });
     return alist;
-  };
+  }
+
   try {
-    var re = await _access();
-    client?.close();
+    var re = await access();
+    client.close();
     return re;
   } catch (e) {
-    client?.close();
+    client.close();
     await Future.delayed(
         Duration(seconds: 15 * math.pow(2, retryTime).toInt()));
     return _getTrackerFrom(trackerUrlStr, ++retryTime);

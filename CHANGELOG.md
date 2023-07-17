@@ -5,3 +5,8 @@
 ## 1.0.3
 
 - Add a method to find the public trackers url.
+
+## 1.0.4
+
+- Migrate to nullsafety
+- Some linting and code style enhancments
