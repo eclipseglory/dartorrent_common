@@ -1,16 +1,12 @@
-name: dartorrent_common
+name: dtorrent_common
 description: A common library for Dart torrent client development. Include some common methods and class.
-version: 1.0.3
-repository: https://github.com/eclipseglory/dartorrent_common
-issue_tracker : https://github.com/eclipseglory/dartorrent_common/issues
-publish_to: https://pub.dev/
+version: 1.0.5
+repository: https://github.com/moham96/dtorrent_common
+issue_tracker: https://github.com/moham96/dtorrent_common/issues
 
 environment:
-  sdk: '>=2.10.0 <3.0.0'
-
-#dependencies:
-#  path: ^1.7.0
+  sdk: ">=2.12.0 <3.0.0"
 
 dev_dependencies:
-  pedantic: ^1.9.0
   test: ^1.14.4
+  lints: ^2.0.1

@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:dartorrent_common/dartorrent_common.dart';
+import 'package:dtorrent_common/dtorrent_common.dart';
 
 void main() {
   var c = CompactAddress(
@@ -12,9 +12,16 @@ void main() {
   var c1 = CompactAddress.parseIPv4Address(c.toBytes());
   print(c1);
 
-  var c2 = c1.clone();
+  var c2 = c1?.clone();
   print(c2 == c);
-  var bytes = CompactAddress.multipleAddressBytes([c, c1, c2]);
+  var compactList = [c];
+  if (c1 != null) {
+    compactList.add(c1);
+  }
+  if (c2 != null) {
+    compactList.add(c2);
+  }
+  var bytes = CompactAddress.multipleAddressBytes(compactList);
   print(bytes);
   var l = CompactAddress.parseIPv4Addresses(bytes);
   print(l);
